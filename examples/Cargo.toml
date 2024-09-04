@@ -1,0 +1,9 @@
+[package]
+name = "examples"
+version.workspace = true
+edition.workspace = true
+
+[dev-dependencies]
+arrow = {workspace = true}
+arrow_struct = { workspace = true }
+bytes = { workspace = true }

@@ -1,0 +1,9 @@
+[package]
+name = "arrow_struct"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+arrow = { workspace =  true }
+bytes = { workspace = true }
+arrow_struct_derive = { workspace = true }
