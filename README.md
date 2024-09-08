@@ -1,4 +1,4 @@
-* Tests
+* Fix handling of large lists
 * Benchmark
     * serde_arrow
     * arrow2-construct

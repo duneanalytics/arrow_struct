@@ -110,8 +110,20 @@ where
     'a: 'c,
 {
     fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Option<&'c [u8]>> {
-        let array = array.as_binary::<i32>();
-        array.iter()
+        let res: Box<dyn Iterator<Item = Self>> = match array.data_type() {
+            DataType::Binary => {
+                let array = array.as_binary::<i32>();
+                Box::new(array.iter())
+            }
+            DataType::LargeBinary => {
+                let array = array.as_binary::<i64>();
+                Box::new(array.iter())
+            }
+            _ => {
+                panic!("Expected Binary, was {:?}", array.data_type())
+            }
+        };
+        res
     }
 }
 

@@ -48,13 +48,13 @@ fn inner_implementation(data: &Data) -> TokenStream {
                 let iterators = fields.named.iter().map(|field| {
                     let name = field.ident.as_ref().unwrap().to_string();
                     let field_type = field.ty.clone();
-                    let column_name = name.to_case(Case::Camel);
+                    let column_name = name.clone(); //.to_case(Case::Camel);
                     let iterator_name = format_ident!("__arrow_struct_derive_{}", name);
 
                     let iterator_declaration = quote_spanned! {field.span()=>
                         let mut #iterator_name = {
                             let array = array.column_by_name(#column_name)
-                                             .expect(stringify!(no column named #name));
+                                             .expect(stringify!(no column named #column_name));
                             <#field_type as arrow_struct::FromArrayRef>::from_array_ref(array)
                         };
                     };

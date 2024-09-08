@@ -7,3 +7,5 @@ edition.workspace = true
 arrow = {workspace = true}
 arrow_struct = { workspace = true }
 bytes = { workspace = true }
+serde_arrow = { workspace = true }
+serde = { workspace = true }

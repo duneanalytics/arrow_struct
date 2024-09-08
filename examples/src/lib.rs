@@ -1,6 +1,134 @@
 #[cfg(test)]
 mod tests {
+    use arrow::array::{
+        Array, BinaryArray, GenericListBuilder, Int32Builder,
+        LargeBinaryArray, LargeStringArray, RecordBatch, StructArray,
+    };
+    use arrow::datatypes::{DataType, Field, FieldRef, Schema};
     use arrow_struct::Deserialize;
+    use arrow_struct::FromArrayRef;
+    use serde_arrow::_impl::arrow::array::StringArray;
+    use serde_arrow::schema::{SchemaLike, TracingOptions};
+    use std::sync::Arc;
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct AllPrimitiveTypes<'a> {
+        i8: Option<i8>,
+        i16: Option<i16>,
+        i32: Option<i32>,
+        i64: Option<i64>,
+        u8: Option<u8>,
+        u16: Option<u16>,
+        u32: Option<u32>,
+        u64: Option<u64>,
+        f32: Option<f32>,
+        f64: Option<f64>,
+        str: Option<&'a str>,
+        byte_slice: Option<&'a [u8]>,
+    }
+
+    #[test]
+    fn all_primitive_types() {
+        let some_string = "0123456789";
+        let data = (0u8..10)
+            .map(|i| AllPrimitiveTypes {
+                i8: Some(1 + i as i8),
+                i16: Some(2 + i as i16),
+                i32: Some(3 + i as i32),
+                i64: Some(4 + i as i64),
+                u8: Some(5 + i),
+                u16: Some(6 + i as u16),
+                u32: Some(7 + i as u32),
+                u64: Some(8 + i as u64),
+                f32: Some(9.0 + i as f32),
+                f64: Some(10.0 + i as f64),
+                str: Some(&some_string[..i as usize]),
+                byte_slice: Some(some_string[..i as usize].as_bytes()),
+            })
+            .collect::<Vec<_>>();
+        let fields =
+            Vec::<FieldRef>::from_type::<AllPrimitiveTypes>(TracingOptions::default()).unwrap();
+        let batch = serde_arrow::to_record_batch(&fields, &data).unwrap();
+        let struct_array: StructArray = batch.into();
+        let array = Arc::new(struct_array) as _;
+        assert_eq!(
+            data,
+            AllPrimitiveTypes::from_array_ref(&array).collect::<Vec<_>>()
+        );
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct Nested1 {
+        element: Option<i32>,
+        nested_2: Option<Vec<Nested2>>,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct Nested2 {
+        nested_3: Option<Vec<Nested3>>,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct Nested3 {
+        nested_4a: Option<Vec<Nested4>>,
+        nested_4b: Option<Vec<Nested4>>,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct Nested4 {
+        element: Option<i32>,
+    }
+
+    #[test]
+    fn deeply_nested() {
+        let data = (0..10)
+            .map(|i| Nested1 {
+                element: Some(i),
+                nested_2: Some(vec![Nested2 {
+                    nested_3: Some(vec![Nested3 {
+                        nested_4a: Some(vec![Nested4 { element: Some(i) }]),
+                        nested_4b: Some(vec![Nested4 { element: Some(i) }]),
+                    }]),
+                }]),
+            })
+            .collect::<Vec<_>>();
+        let fields = Vec::<FieldRef>::from_type::<Nested1>(TracingOptions::default()).unwrap();
+        let batch = serde_arrow::to_record_batch(&fields, &data).unwrap();
+        let struct_array: StructArray = batch.into();
+        let array = Arc::new(struct_array) as _;
+        assert_eq!(data, Nested1::from_array_ref(&array).collect::<Vec<_>>());
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct Outer {
+        inner: Inner,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+    struct Inner {
+        i64: Option<i64>,
+    }
+
+    #[test]
+    fn outer_inner() {
+        let data = (0..10)
+            .map(|i| Outer {
+                inner: Inner { i64: Some(i) },
+            })
+            .collect::<Vec<_>>();
+        let fields = Vec::<FieldRef>::from_type::<Outer>(TracingOptions::default()).unwrap();
+        let batch = serde_arrow::to_record_batch(&fields, &data).unwrap();
+        let struct_array: StructArray = batch.into();
+        let array = Arc::new(struct_array) as _;
+        assert_eq!(data, Outer::from_array_ref(&array).collect::<Vec<_>>());
+    }
 
     #[allow(dead_code)]
     #[derive(Deserialize, Debug)]
@@ -19,88 +147,84 @@ mod tests {
         id: Option<i32>,
     }
 
-    use arrow::array::{
-        Array, BinaryArray, GenericListBuilder, Int32Array, Int32Builder, Int64Array, RecordBatch,
-        StructArray, StructBuilder,
-    };
-    use arrow::datatypes::{DataType, Field, Schema};
-    use arrow_struct::FromArrayRef;
-    use std::sync::Arc;
+    #[derive(Debug, PartialEq, Deserialize)]
+    struct SmallAndLargeArrays<'a> {
+        string: Option<&'a str>,
+        large_string: Option<&'a str>,
+        binary: Option<&'a [u8]>,
+        large_binary: Option<&'a [u8]>,
+        list: Option<Vec<i32>>,
+        large_list: Option<Vec<i32>>,
+    }
 
     #[test]
-    fn my_test() {
-        let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
-        let id2_array = Int64Array::from(vec![1, 2, 3, 4, 5]);
-        let bin_data: Vec<&[u8]> = vec![b"1", b"2", b"3", b"4", b"5"];
-        let binary_array = BinaryArray::from(bin_data);
-        let schema_nested = Schema::new(vec![Field::new("id", DataType::Int32, false)]);
-        let list_field = Arc::new(Field::new_list_field(DataType::Int32, true));
-        let list_nested_field = Arc::new(Field::new_list_field(
-            DataType::Struct(schema_nested.clone().fields),
-            true,
-        ));
-        let schema = Schema::new(vec![
-            Field::new("id", DataType::Int32, false),
-            Field::new("id2", DataType::Int64, false),
-            Field::new("id3", DataType::Struct(schema_nested.clone().fields), false),
-            Field::new("list", DataType::List(list_field), false),
-            Field::new("listNested", DataType::List(list_nested_field), true),
-            Field::new("bytes", DataType::Binary, false),
-        ]);
-
-        println!("{:?}", schema);
-
-        let values_builder = Int32Builder::new();
+    fn small_and_large_arrays() {
+        let string_array: Arc<dyn Array> = Arc::new(StringArray::from(vec!["1", "2"]));
+        let large_string_array: Arc<dyn Array> = Arc::new(LargeStringArray::from(vec!["1", "2"]));
+        let data: Vec<Option<&[u8]>> = vec![Some(b"1"), Some(b"2")];
+        let binary_array: Arc<dyn Array> = Arc::new(BinaryArray::from(data.clone()));
+        let large_binary_array: Arc<dyn Array> = Arc::new(LargeBinaryArray::from(data));
         let mut builder: GenericListBuilder<i32, Int32Builder> =
-            GenericListBuilder::new(values_builder);
-
-        for i in 1..=5 {
+            GenericListBuilder::new(Int32Builder::new());
+        for i in 1..=2 {
             builder.values().append_value(i);
             builder.append(true);
         }
-        let list = builder.finish();
-
-        let values_builder = StructBuilder::from_fields(schema_nested.clone().fields, 5);
-        let mut builder: GenericListBuilder<i32, StructBuilder> =
-            GenericListBuilder::new(values_builder);
-        for i in 1..=5 {
-            for j in 1..=i {
-                let field_builder: &mut Int32Builder = builder.values().field_builder(0).unwrap();
-                field_builder.append_value(j);
-                builder.values().append(true);
-            }
-
-            if i % 2 == 0 {
-                builder.append(true);
-            } else {
-                builder.append_null();
-            }
+        let list_array: Arc<dyn Array> = Arc::new(builder.finish());
+        let mut builder: GenericListBuilder<i64, Int32Builder> =
+            GenericListBuilder::new(Int32Builder::new());
+        for i in 1..=2 {
+            builder.values().append_value(i);
+            builder.append(true);
         }
-        let list_nested = builder.finish();
+        let large_list_array: Arc<dyn Array> = Arc::new(builder.finish());
 
-        let ids = Arc::new(id_array);
-        let ids2 = Arc::new(id2_array);
-        let batch_nested =
-            RecordBatch::try_new(Arc::new(schema_nested), vec![ids.clone()]).unwrap();
-        let array_nested: StructArray = batch_nested.into();
-        let ids3 = Arc::new(array_nested);
+        let list_field = Arc::new(Field::new_list_field(DataType::Int32, true));
+        let schema = Schema::new(vec![
+            Field::new("string", DataType::Utf8, false),
+            Field::new("large_string", DataType::LargeUtf8, false),
+            Field::new("binary", DataType::Binary, false),
+            Field::new("large_binary", DataType::LargeBinary, false),
+            Field::new("list", DataType::List(list_field.clone()), true),
+            Field::new("large_list", DataType::LargeList(list_field), false),
+        ]);
 
         let batch = RecordBatch::try_new(
             Arc::new(schema),
             vec![
-                ids.clone(),
-                ids2.clone(),
-                ids3.clone(),
-                Arc::new(list),
-                Arc::new(list_nested),
-                Arc::new(binary_array),
+                string_array,
+                large_string_array,
+                binary_array,
+                large_binary_array,
+                list_array,
+                large_list_array,
             ],
         )
         .unwrap();
-        let st: StructArray = batch.into();
 
-        let st: Arc<dyn Array> = Arc::new(st);
-        let s = Struct::from_array_ref(&st);
-        println!("{:#?}", s.collect::<Vec<_>>())
+        let struct_array: StructArray = batch.into();
+        let array = Arc::new(struct_array) as _;
+        let expected = vec![
+            SmallAndLargeArrays {
+                string: Some("1"),
+                large_string: Some("1"),
+                binary: Some(b"1"),
+                large_binary: Some(b"1"),
+                list: Some(vec![1]),
+                large_list: Some(vec![1]),
+            },
+            SmallAndLargeArrays {
+                string: Some("2"),
+                large_string: Some("2"),
+                binary: Some(b"2"),
+                large_binary: Some(b"2"),
+                list: Some(vec![2]),
+                large_list: Some(vec![2]),
+            },
+        ];
+        assert_eq!(
+            expected,
+            SmallAndLargeArrays::from_array_ref(&array).collect::<Vec<_>>()
+        );
     }
 }
