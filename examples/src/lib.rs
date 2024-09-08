@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use arrow::array::{
-        Array, BinaryArray, GenericListBuilder, Int32Builder,
-        LargeBinaryArray, LargeStringArray, RecordBatch, StructArray,
+        Array, BinaryArray, GenericListBuilder, Int32Builder, LargeBinaryArray, LargeStringArray,
+        RecordBatch, StructArray,
     };
     use arrow::datatypes::{DataType, Field, FieldRef, Schema};
     use arrow_struct::Deserialize;

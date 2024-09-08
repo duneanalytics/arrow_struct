@@ -1,9 +1,9 @@
-* Fix handling of large lists
 * Benchmark
     * serde_arrow
     * arrow2-construct
 * Configurable column cases with attributes
 * Pick a better name
+* Add more convenient interface for converting record batches
 
 # Usage
 

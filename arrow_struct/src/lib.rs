@@ -1,6 +1,7 @@
 pub use arrow::array::Array;
 pub use arrow::array::ArrayRef;
 pub use arrow::array::AsArray;
+use arrow::array::{GenericListArray, OffsetSizeTrait};
 pub use arrow::datatypes::Int32Type;
 pub use arrow::datatypes::Int64Type;
 use arrow::datatypes::{
@@ -23,7 +24,7 @@ macro_rules! impl_from_array_ref_primitive {
             fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
                 let array = array
                     .as_primitive_opt::<$data_ty>()
-                    .expect(&format!("Expected Int32Type, was {:?}", array.data_type()));
+                    .expect(&format!(concat!(stringify!(Expected #data_ty), ", was {:?}"), array.data_type()));
                 array.iter()
             }
         }
@@ -33,7 +34,7 @@ macro_rules! impl_from_array_ref_primitive {
             fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
                 let array = array
                     .as_primitive_opt::<$data_ty>()
-                    .expect(&format!("Expected Int32Type, was {:?}", array.data_type()));
+                    .expect(&format!(concat!(stringify!(Expected #data_ty), ", was {:?}"), array.data_type()));
                 array.iter().map(Option::unwrap)
             }
         }
@@ -127,7 +128,7 @@ where
     }
 }
 
-impl<'a, T: FromArrayRef<'a> + Debug> FromArrayRef<'a> for Option<Vec<T>> {
+impl<'a, T: FromArrayRef<'a> + Debug + 'a> FromArrayRef<'a> for Option<Vec<T>> {
     // TODO: Needs extensive testing.
     // This is a bit verbose, but the naive implementation below is too slow:
     // array.iter()
@@ -137,36 +138,54 @@ impl<'a, T: FromArrayRef<'a> + Debug> FromArrayRef<'a> for Option<Vec<T>> {
     // T::from_array_ref in any kind of loop.
     // Could be room for more optimization by not using iterators?
     fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
-        let array = array.as_list::<i32>();
-        let nulls = array.logical_nulls();
-        let mut inner = T::from_array_ref(array.values());
-        let mut current_position = 0;
+        fn helper<'a, O: OffsetSizeTrait + Into<i64>, T: FromArrayRef<'a> + Debug + 'a>(
+            array: &'a GenericListArray<O>,
+        ) -> impl Iterator<Item = Option<Vec<T>>> + 'a {
+            let nulls = array.logical_nulls();
+            let mut inner = T::from_array_ref(array.values());
+            let mut current_position = 0;
 
-        std::iter::from_fn(move || {
-            if current_position >= array.len() {
-                return None;
+            std::iter::from_fn(move || {
+                if current_position >= array.len() {
+                    return None;
+                }
+
+                let len = array.value_length(current_position).into();
+                let is_null = nulls
+                    .as_ref()
+                    .map(|buffer| buffer.is_null(current_position))
+                    .unwrap_or_default();
+                let res = if is_null {
+                    for _ in 0..len {
+                        // This can happen if record batch has values which are nulled. It's weird to construct RecordBatches this way, but it's possible
+                        let _ = inner.next().unwrap();
+                    }
+                    None
+                } else {
+                    let mut out = Vec::with_capacity(len as usize);
+                    for _ in 0..len {
+                        out.push(inner.next().unwrap());
+                    }
+                    Some(out)
+                };
+                current_position += 1;
+                Some(res)
+            })
+        }
+
+        let res: Box<dyn Iterator<Item = Self>> = match array.data_type() {
+            DataType::List(_) => {
+                let array = array.as_list::<i32>();
+                Box::new(helper(array))
             }
-
-            let len = array.value_length(current_position);
-            let is_null = nulls
-                .as_ref()
-                .map(|buffer| buffer.is_null(current_position))
-                .unwrap_or_default();
-            let res = if is_null {
-                for _ in 0..len {
-                    // This can happen if record batch has values which are nulled. It's weird to construct RecordBatches this way, but it's possible
-                    let _ = inner.next().unwrap();
-                }
-                None
-            } else {
-                let mut out = Vec::with_capacity(len as usize);
-                for _ in 0..len {
-                    out.push(inner.next().unwrap());
-                }
-                Some(out)
-            };
-            current_position += 1;
-            Some(res)
-        })
+            DataType::LargeList(_) => {
+                let array = array.as_list::<i64>();
+                Box::new(helper(array))
+            }
+            _ => {
+                panic!("Expected Binary, was {:?}", array.data_type())
+            }
+        };
+        res
     }
 }
