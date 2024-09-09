@@ -26,15 +26,14 @@ fn benchmark<
 >(
     c: &mut Criterion,
     size: usize,
-    name: &'static str,
 ) {
     let batch = setup_record_batch::<T>(size);
     let struct_array: StructArray = batch.clone().into();
     let array: ArrayRef = Arc::new(struct_array);
-    c.bench_function(&format!("serde_arrow {}", name), |b| {
+    c.bench_function(&format!("serde_arrow {} {}", std::any::type_name::<T>(), size), |b| {
         b.iter_with_large_drop(|| serde_arrow_convert::<T>(black_box(&batch)))
     });
-    c.bench_function(&format!("arrow_struct {}", name), |b| {
+    c.bench_function(&format!("arrow_struct {} {}", std::any::type_name::<T>(), size), |b| {
         b.iter_with_large_drop(|| arrow_struct_convert::<T>(black_box(&array)))
     });
 }
@@ -51,7 +50,7 @@ impl From<usize> for Small {
 }
 
 fn benchmark_small(c: &mut Criterion) {
-    benchmark::<Small>(c, 1024, "small 1024")
+    benchmark::<Small>(c, 1024)
 }
 
 #[derive(Deserialize, Serialize, arrow_struct::Deserialize)]
@@ -68,7 +67,7 @@ impl From<usize> for Large {
 }
 
 fn benchmark_large(c: &mut Criterion) {
-    benchmark::<Large>(c, 1024, "large 1024")
+    benchmark::<Large>(c, 1024)
 }
 
 criterion_group!(benches, benchmark_small, benchmark_large);
