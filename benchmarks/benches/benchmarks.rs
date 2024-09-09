@@ -38,35 +38,31 @@ fn benchmark<
     });
 }
 
-#[derive(Deserialize, Serialize, arrow_struct::Deserialize)]
-struct Small {
-    i64: i64,
-}
-
-impl From<usize> for Small {
-    fn from(value: usize) -> Self {
-        Self { i64: value as i64 }
-    }
-}
-
 fn benchmark_small(c: &mut Criterion) {
+    #[derive(Deserialize, Serialize, arrow_struct::Deserialize)]
+    struct Small {
+        i64: i64,
+    }
+    impl From<usize> for Small {
+        fn from(value: usize) -> Self {
+            Self { i64: value as i64 }
+        }
+    }
     benchmark::<Small>(c, 1024)
 }
 
-#[derive(Deserialize, Serialize, arrow_struct::Deserialize)]
-struct Large {
-    vec: Option<Vec<i64>>,
-}
-
-impl From<usize> for Large {
-    fn from(value: usize) -> Self {
-        Self {
-            vec: Some(vec![value as i64; value]),
+fn benchmark_large(c: &mut Criterion) {
+    #[derive(Deserialize, Serialize, arrow_struct::Deserialize)]
+    struct Large {
+        vec: Option<Vec<i64>>,
+    }
+    impl From<usize> for Large {
+        fn from(value: usize) -> Self {
+            Self {
+                vec: Some(vec![value as i64; value]),
+            }
         }
     }
-}
-
-fn benchmark_large(c: &mut Criterion) {
     benchmark::<Large>(c, 1024)
 }
 
