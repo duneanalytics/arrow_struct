@@ -1,0 +1,15 @@
+[package]
+name = "benchmarks"
+edition.workspace = true
+version.workspace = true
+
+[dev-dependencies]
+criterion = { workspace = true }
+arrow = {workspace = true}
+arrow_struct = { workspace = true }
+serde_arrow = { workspace = true }
+serde = { workspace = true }
+
+[[bench]]
+name = "benchmarks"
+harness = false
