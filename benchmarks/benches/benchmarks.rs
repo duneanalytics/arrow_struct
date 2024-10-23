@@ -30,12 +30,14 @@ fn benchmark<
     let batch = setup_record_batch::<T>(size);
     let struct_array: StructArray = batch.clone().into();
     let array: ArrayRef = Arc::new(struct_array);
-    c.bench_function(&format!("serde_arrow {} {}", std::any::type_name::<T>(), size), |b| {
-        b.iter_with_large_drop(|| serde_arrow_convert::<T>(black_box(&batch)))
-    });
-    c.bench_function(&format!("arrow_struct {} {}", std::any::type_name::<T>(), size), |b| {
-        b.iter_with_large_drop(|| arrow_struct_convert::<T>(black_box(&array)))
-    });
+    c.bench_function(
+        &format!("serde_arrow {} {}", std::any::type_name::<T>(), size),
+        |b| b.iter_with_large_drop(|| serde_arrow_convert::<T>(black_box(&batch))),
+    );
+    c.bench_function(
+        &format!("arrow_struct {} {}", std::any::type_name::<T>(), size),
+        |b| b.iter_with_large_drop(|| arrow_struct_convert::<T>(black_box(&array))),
+    );
 }
 
 fn benchmark_small(c: &mut Criterion) {

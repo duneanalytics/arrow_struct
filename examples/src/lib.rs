@@ -2,11 +2,12 @@
 mod tests {
     use arrow::array::{
         Array, BinaryArray, GenericListBuilder, Int32Builder, LargeBinaryArray, LargeStringArray,
-        RecordBatch, StructArray,
+        LargeStringBuilder, RecordBatch, StructArray,
     };
-    use arrow::datatypes::{DataType, Field, FieldRef, Schema};
+    use arrow::datatypes::{DataType, Field, FieldRef, Fields, Schema};
     use arrow_struct::Deserialize;
     use arrow_struct::FromArrayRef;
+    use serde_arrow::_impl::arrow::_raw::buffer::NullBufferBuilder;
     use serde_arrow::_impl::arrow::array::StringArray;
     use serde_arrow::schema::{SchemaLike, TracingOptions};
     use std::sync::Arc;
@@ -30,6 +31,7 @@ mod tests {
 
     #[test]
     fn all_primitive_types() {
+        println!("here");
         let some_string = "0123456789";
         let data = (0u8..10)
             .map(|i| AllPrimitiveTypes {
@@ -226,5 +228,118 @@ mod tests {
             expected,
             SmallAndLargeArrays::from_array_ref(&array).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn null_object() {
+        #[allow(dead_code)]
+        #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+        #[arrow_struct(rename_all = "camelCase")]
+        struct NullOuter {
+            inner1: Option<NullInner>,
+        }
+        #[allow(dead_code)]
+        #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+        struct NullInner {
+            string1: String,
+        }
+
+        let data = [
+            NullOuter { inner1: None },
+            NullOuter {
+                inner1: Some(NullInner {
+                    string1: "hello".to_string(),
+                }),
+            },
+            NullOuter { inner1: None },
+            NullOuter {
+                inner1: Some(NullInner {
+                    string1: "world".to_string(),
+                }),
+            },
+        ];
+
+        let mut string_array_builder = LargeStringBuilder::new();
+        string_array_builder.append_null();
+        string_array_builder.append_value("hello");
+        string_array_builder.append_null();
+        string_array_builder.append_value("world");
+
+        let mut null_buffer_builder = NullBufferBuilder::new(10);
+        null_buffer_builder.append_null();
+        null_buffer_builder.append(true);
+        null_buffer_builder.append_null();
+        null_buffer_builder.append(true);
+
+        let fields_inner = Vec::<FieldRef>::from_type::<NullInner>(
+            TracingOptions::default().allow_null_fields(true),
+        )
+        .unwrap();
+        let struct_array_inner = StructArray::new(
+            Fields::from(fields_inner),
+            vec![Arc::new(string_array_builder.finish())],
+            null_buffer_builder.finish(),
+        );
+
+        let fields = Vec::<FieldRef>::from_type::<NullOuter>(
+            TracingOptions::default().allow_null_fields(true),
+        )
+        .unwrap();
+        let struct_array = StructArray::new(
+            Fields::from(fields),
+            vec![Arc::new(struct_array_inner)],
+            None,
+        );
+        let batch = RecordBatch::from(struct_array);
+        let i = 2;
+        let length = 2;
+        let struct_array: StructArray = batch.clone().into();
+        let struct_array = struct_array.slice(i, length);
+
+        let array = Arc::new(struct_array) as _;
+        assert_eq!(
+            &data[i..i + length],
+            NullOuter::from_array_ref(&array).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn null_object_vec() {
+        #[allow(dead_code)]
+        #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+        struct Struct {
+            string: Vec<String>,
+        }
+        let data = (1..=10)
+            .map(|x| Struct {
+                string: (1..=x).map(|y| y.to_string()).collect(),
+            })
+            .collect::<Vec<_>>();
+        let fields = Vec::<FieldRef>::from_type::<Struct>(TracingOptions::default()).unwrap();
+        let batch = serde_arrow::to_record_batch(&fields, &data).unwrap();
+        let batch = batch.slice(5, 5);
+
+        let struct_array: StructArray = batch.clone().into();
+        let array = Arc::new(struct_array) as _;
+        let actual = Struct::from_array_ref(&array).collect::<Vec<_>>();
+        assert_eq!(data[5..10], actual);
+    }
+
+    #[test]
+    fn camel_case() {
+        #[allow(dead_code)]
+        #[derive(serde::Deserialize, serde::Serialize, Deserialize, Debug, PartialEq)]
+        #[serde(rename_all = "camelCase")]
+        #[arrow_struct(rename_all = "camelCase")]
+        struct Struct {
+            camel_case: i64,
+        }
+        let data = vec![Struct { camel_case: 1 }];
+        let fields = Vec::<FieldRef>::from_type::<Struct>(TracingOptions::default()).unwrap();
+        let batch = serde_arrow::to_record_batch(&fields, &data).unwrap();
+
+        let struct_array: StructArray = batch.clone().into();
+        let array = Arc::new(struct_array) as _;
+        println!("{:?}", Struct::from_array_ref(&array).collect::<Vec<_>>());
     }
 }
