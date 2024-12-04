@@ -18,6 +18,17 @@ pub trait FromArrayRef<'a>: Sized {
     fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self>;
 }
 
+macro_rules! impl_from_array_ref_required {
+    ($native_ty:ty) => {
+        /// Will panic on null
+        impl<'a> FromArrayRef<'a> for $native_ty {
+            fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
+                Option::<$native_ty>::from_array_ref(array).map(Option::unwrap)
+            }
+        }
+    };
+}
+
 macro_rules! impl_from_array_ref_primitive {
     ($native_ty:ty, $data_ty:ty) => {
         impl<'a> FromArrayRef<'a> for Option<$native_ty> {
@@ -29,15 +40,7 @@ macro_rules! impl_from_array_ref_primitive {
             }
         }
 
-        /// Will panic on null
-        impl<'a> FromArrayRef<'a> for $native_ty {
-            fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
-                let array = array
-                    .as_primitive_opt::<$data_ty>()
-                    .expect(&format!(concat!(stringify!(Expected #data_ty), ", was {:?}"), array.data_type()));
-                array.iter().map(Option::unwrap)
-            }
-        }
+        impl_from_array_ref_required!($native_ty);
     };
 }
 
@@ -59,6 +62,8 @@ impl<'a> FromArrayRef<'a> for Option<bool> {
     }
 }
 
+impl_from_array_ref_required!(bool);
+
 impl<'a> FromArrayRef<'a> for Option<String> {
     fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
         let res: Box<dyn Iterator<Item = Self>> = match array.data_type() {
@@ -77,6 +82,8 @@ impl<'a> FromArrayRef<'a> for Option<String> {
         res
     }
 }
+
+impl_from_array_ref_required!(String);
 
 impl<'a> FromArrayRef<'a> for Option<&'a str> {
     fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
@@ -97,18 +104,26 @@ impl<'a> FromArrayRef<'a> for Option<&'a str> {
     }
 }
 
+impl_from_array_ref_required!(&'a str);
+
 impl<'a> FromArrayRef<'a> for Option<Bytes> {
     fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
         let res: Box<dyn Iterator<Item = Self>> = match array.data_type() {
             DataType::Binary => {
                 let array = array.as_binary::<i32>();
-                Box::new(array.iter()
-                    .map(|bytes| bytes.map(|bytes| Bytes::from(bytes.to_vec()))))
+                Box::new(
+                    array
+                        .iter()
+                        .map(|bytes| bytes.map(|bytes| Bytes::from(bytes.to_vec()))),
+                )
             }
             DataType::LargeBinary => {
                 let array = array.as_binary::<i64>();
-                Box::new(array.iter()
-                    .map(|bytes| bytes.map(|bytes| Bytes::from(bytes.to_vec()))))
+                Box::new(
+                    array
+                        .iter()
+                        .map(|bytes| bytes.map(|bytes| Bytes::from(bytes.to_vec()))),
+                )
             }
             _ => {
                 panic!("Expected String, was {:?}", array.data_type())
@@ -118,11 +133,10 @@ impl<'a> FromArrayRef<'a> for Option<Bytes> {
     }
 }
 
-impl<'a, 'c> FromArrayRef<'a> for Option<&'c [u8]>
-where
-    'a: 'c,
-{
-    fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Option<&'c [u8]>> {
+impl_from_array_ref_required!(Bytes);
+
+impl<'a> FromArrayRef<'a> for Option<&'a [u8]> {
+    fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Option<&'a [u8]>> {
         let res: Box<dyn Iterator<Item = Self>> = match array.data_type() {
             DataType::Binary => {
                 let array = array.as_binary::<i32>();
@@ -139,6 +153,8 @@ where
         res
     }
 }
+
+impl_from_array_ref_required!(&'a [u8]);
 
 impl<'a, T: FromArrayRef<'a> + Debug + 'a> FromArrayRef<'a> for Option<Vec<T>> {
     // TODO: Needs extensive testing.
@@ -199,5 +215,11 @@ impl<'a, T: FromArrayRef<'a> + Debug + 'a> FromArrayRef<'a> for Option<Vec<T>> {
             }
         };
         res
+    }
+}
+
+impl<'a, T: FromArrayRef<'a> + Debug + 'a> FromArrayRef<'a> for Vec<T> {
+    fn from_array_ref(array: &'a ArrayRef) -> impl Iterator<Item = Self> {
+        Option::<Vec<T>>::from_array_ref(array).map(Option::unwrap)
     }
 }
