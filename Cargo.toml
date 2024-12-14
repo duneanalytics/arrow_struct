@@ -20,6 +20,6 @@ convert_case = "0.6.0"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"
 syn = "2.0.76"
-serde_arrow = { version = "0.11.7", features = ["arrow-52"] }
+serde_arrow = { version = "0.12.2", features = ["arrow-53"] }
 serde = { version = "1.0.210" }
 criterion = { version = "0.5.1" }
