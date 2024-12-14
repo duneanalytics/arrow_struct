@@ -13,7 +13,7 @@ edition = "2021"
 [workspace.dependencies]
 arrow_struct = {path = "arrow_struct" }
 arrow_struct_derive = { path = "arrow_struct_derive" }
-arrow = "52.2.0"
+arrow = "53.3.0"
 bytes = "1.6.0"
 
 convert_case = "0.6.0"
