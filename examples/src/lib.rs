@@ -7,7 +7,7 @@ mod tests {
     use arrow::datatypes::{DataType, Field, FieldRef, Schema};
     use arrow_struct::Deserialize;
     use arrow_struct::FromArrayRef;
-    use serde_arrow::_impl::arrow::array::StringArray;
+    use arrow::array::StringArray;
     use serde_arrow::schema::{SchemaLike, TracingOptions};
     use std::sync::Arc;
 
@@ -44,7 +44,7 @@ mod tests {
                 f32: Some(9.0 + i as f32),
                 f64: Some(10.0 + i as f64),
                 str: Some(&some_string[..i as usize]),
-                byte_slice: Some(some_string[..i as usize].as_bytes()),
+                byte_slice: Some(&some_string.as_bytes()[..i as usize]),
             })
             .collect::<Vec<_>>();
         let fields =

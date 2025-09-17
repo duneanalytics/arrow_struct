@@ -8,7 +8,7 @@ use serde_arrow::schema::{SchemaLike, TracingOptions};
 use std::sync::Arc;
 
 fn serde_arrow_convert<T: DeserializeOwned>(batch: &RecordBatch) -> Vec<T> {
-    serde_arrow::from_record_batch(&batch).unwrap()
+    serde_arrow::from_record_batch(batch).unwrap()
 }
 
 fn arrow_struct_convert<'a, T: arrow_struct::FromArrayRef<'a>>(batch: &'a ArrayRef) -> Vec<T> {

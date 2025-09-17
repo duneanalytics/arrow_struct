@@ -1,6 +1,5 @@
 extern crate proc_macro;
 
-use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
